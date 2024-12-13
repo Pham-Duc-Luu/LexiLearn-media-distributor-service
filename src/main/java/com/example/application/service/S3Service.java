@@ -66,6 +66,7 @@ public class S3Service {
     private final Region region = Region.of(DotenvConfig.getS3BucketRegion());
     private final String key = DotenvConfig.getS3BucketKey();
     private final String secret = DotenvConfig.getS3BucketSecret();
+    private String PresignedGetUrl;
 
 
     private String keyName;
@@ -109,28 +110,22 @@ public class S3Service {
 
     // Asynchronously uploads a file to S3 with the specified key
     @Async
-    public S3Service uploadFile(String keyName, byte[] fileData) throws Exception {
+    public void uploadFile(String keyName, byte[] fileData) throws Exception {
         this.keyName = keyName;
         uploadToS3(DotenvConfig.getS3BucketName(), keyName, fileData);
-        return this;
+
     }
 
     // Overloaded method to allow uploading to a specified bucket
     @Async
-    public S3Service uploadFile(String bucketName, String keyName, byte[] fileData) throws Exception {
+    public void uploadFile(String bucketName, String keyName, byte[] fileData) throws Exception {
         this.keyName = keyName;
         uploadToS3(bucketName, keyName, fileData);
-        return this;
-
     }
 
-    @Async
-    public String getPresignedGetUrl(Duration duration) {
-        return createPresignedGetUrl(bucketname, keyName, duration);
-    }
 
     /* Create a pre-signed URL to download an object in a subsequent GET request. */
-    public String createPresignedGetUrl(String bucketName, String keyName, Duration duration) {
+    public String getPresignedGetUrl(String bucketName, String keyName, Duration duration) {
         try (S3Presigner presigner = S3Presigner.builder()
                 .region(region)
                 .credentialsProvider(
@@ -152,7 +147,63 @@ public class S3Service {
             PresignedGetObjectRequest presignedGetObjectRequest = presigner.presignGetObject(getObjectPresignRequest);
 
             return presignedGetObjectRequest.url().toString();
+
         }
     }
+
+    public String getPresignedGetUrl(String keyName, Duration duration) {
+        try (S3Presigner presigner = S3Presigner.builder()
+                .region(region)
+                .credentialsProvider(
+                        StaticCredentialsProvider.create(AwsBasicCredentials.create(key, secret)))
+                .build()
+        ) {
+
+
+            GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                    .bucket(this.bucketname)
+                    .key(keyName)
+                    .build();
+
+            GetObjectPresignRequest getObjectPresignRequest = GetObjectPresignRequest.builder()
+                    .signatureDuration(duration)  // The URL will expire in 10 minutes.
+                    .getObjectRequest(getObjectRequest)
+                    .build();
+
+            PresignedGetObjectRequest presignedGetObjectRequest = presigner.presignGetObject(getObjectPresignRequest);
+
+            return presignedGetObjectRequest.url().toString();
+
+        }
+    }
+
+
+    /* Create a pre-signed URL to download an object in a subsequent GET request. */
+    public String getPresignedGetUrl(Duration duration) {
+        try (S3Presigner presigner = S3Presigner.builder()
+                .region(region)
+                .credentialsProvider(
+                        StaticCredentialsProvider.create(AwsBasicCredentials.create(key, secret)))
+                .build()
+        ) {
+
+
+            GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                    .bucket(this.bucketname)
+                    .key(this.keyName)
+                    .build();
+
+            GetObjectPresignRequest getObjectPresignRequest = GetObjectPresignRequest.builder()
+                    .signatureDuration(duration)  // The URL will expire in 10 minutes.
+                    .getObjectRequest(getObjectRequest)
+                    .build();
+
+            PresignedGetObjectRequest presignedGetObjectRequest = presigner.presignGetObject(getObjectPresignRequest);
+
+            return presignedGetObjectRequest.url().toString();
+
+        }
+    }
+
 
 }

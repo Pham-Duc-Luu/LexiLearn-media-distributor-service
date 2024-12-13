@@ -9,21 +9,57 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.Optional;
 
 @Service
 public class ImageService {
 
-    @Autowired
     private final ImageRepository imageRepository;
 
     public ImageService(ImageRepository imageRepository) {
         this.imageRepository = imageRepository;
     }
 
-    public ImageModal saveImage(ImageModal imageModal) {
-        return imageRepository.save(imageModal);
+    public void saveImage(ImageModal imageModal) {
+        imageRepository.save(imageModal);
     }
 
+    public Optional<ImageModal> getImageById(String id) {
+        return imageRepository.findById(Integer.parseInt(id));
+    }
+
+    public Optional<ImageModal> getImageByFileName(String fileName) {
+        return imageRepository.findByFileName(fileName);
+    }
+
+    public ImageModal updateImage(String id, ImageModal updatedImageModal) {
+        return imageRepository.findById(Integer.parseInt(id)).map(existingImage -> {
+            // Update fields as needed
+            if (updatedImageModal.getFileName() != null) {
+                existingImage.setFileName(updatedImageModal.getFileName());
+            }
+            if (updatedImageModal.getFileSize() != null) {
+                existingImage.setFileSize(updatedImageModal.getFileSize());
+            }
+            if (updatedImageModal.getFormat() != null) {
+                existingImage.setFormat(updatedImageModal.getFormat());
+            }
+            if (updatedImageModal.getPublicUrl() != null) {
+                existingImage.setPublicUrl(updatedImageModal.getPublicUrl());
+            }
+            if (updatedImageModal.getExpireAt() != null) {
+                existingImage.setExpireAt(updatedImageModal.getExpireAt());
+            }
+            if (updatedImageModal.getWidth() != null) {
+                existingImage.setWidth(updatedImageModal.getWidth());
+            }
+            if (updatedImageModal.getHeight() != null) {
+                existingImage.setHeight(updatedImageModal.getHeight());
+            }
+            // Save updated entity
+            return imageRepository.save(existingImage);
+        }).orElseThrow(() -> new IllegalArgumentException("Image with ID " + id + " not found"));
+    }
 
     public byte[] compressImage(MultipartFile file, double maxFileSizeMB) throws IOException {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();

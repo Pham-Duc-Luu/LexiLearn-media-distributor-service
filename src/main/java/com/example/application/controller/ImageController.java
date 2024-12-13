@@ -1,28 +1,25 @@
 package com.example.application.controller;
 
+import com.cloudinary.Api;
 import com.example.application.config.DotenvConfig;
 import com.example.application.dto.ApiResponse;
 import com.example.application.dto.ImageDto;
 import com.example.application.model.image.ImageModal;
-import com.example.application.repository.image.ImageRepository;
-import com.example.application.service.CloudinaryService;
-import com.example.application.service.ImageService;
-import com.example.application.service.S3Service;
-import com.example.application.service.SaveFile;
+import com.example.application.service.*;
+import com.example.application.util.CloudProvider;
 import com.example.application.util.ImageUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.core.io.Resource;
+
 import org.springframework.core.io.ResourceLoader;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMessage;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.*;
 
 @RestController
@@ -38,21 +35,23 @@ public class ImageController {
     // list of allow MIME type
     private static final List<String> ALLOWED_MIME_TYPES = Arrays.asList("image/jpeg", "image/png", "image/gif");
     private static final Double maxFileSize = 0.5;
-    private final ResourceLoader resourceLoader;
     private final SaveFile saveFile = new SaveFile();
     private final ImageService imageService;
+    private final String public_url_expire_in = DotenvConfig.getEnv("PUBLIC_CLOUD_URL_EXPIRE_IN");
+
+    private final CloudStorageService cloudStorageService = new CloudStorageService(CloudProvider.AMAZON_S3);
+
 
     // * define a living time for the url that fetching image data from the s3 bucket
     // TODO : this parameter should be confined to match the system requirements
     // ? for now this will be 10 minutes
     private final Duration timeLivingOfFilUrl = Duration.ofMinutes(10);
-    @Autowired
-    private CloudinaryService cloudinaryService;
+
 
     public ImageController(ResourceLoader resourceLoader, ImageService imageService) {
-        this.resourceLoader = resourceLoader;
         this.imageService = imageService;
     }
+
 
     @PostMapping("/upload")
     public ResponseEntity<ApiResponse<?>> uploadFile(@RequestParam("file") MultipartFile file) {
@@ -73,23 +72,28 @@ public class ImageController {
             // ! compress image file below than max file size
             byte[] fileAfterCompressed = imageService.compressImage(file, maxFileSize);
             System.out.println(fileAfterCompressed.length);
-            // * generate a unique file name using uuid
-            String fileName = UUID.randomUUID().toString();
-
-
-            S3Service s3Service = new S3Service();
-
-            // * upload image to the s3 and then get the public url to that resources
-            String imageUrl = s3Service.uploadFile(fileName,
-                    fileAfterCompressed
-            ).getPresignedGetUrl(timeLivingOfFilUrl);
-
-            // * save the image information after upload to s3
+            // * init a imageModal instance to hold image's information
             ImageModal imageModal = new ImageModal();
-            imageModal.setFileName(fileName).setFileSize((long) fileAfterCompressed.length).setFormat("image/jpeg");
+            // * generate a unique file name using uuid
+            imageModal.setFileName(UUID.randomUUID().toString())
+                    .setFileSize((long) fileAfterCompressed.length)
+                    .setExpireAt(LocalDateTime.now().plusSeconds(Integer.parseInt(this.public_url_expire_in)))
+                    .setFormat("image/jpeg")
+                    .setCloudProvider(CloudProvider.AMAZON_S3)
+                    .setPublicUrl("");
+
+            // IMPORTANT : upload it to cloud
+            cloudStorageService.uploadFile(imageModal.getFileName(), fileAfterCompressed);
+
+            imageModal.setPublicUrl(cloudStorageService.getPresignedGetUrl(imageModal.getFileName(), Duration.ofSeconds(Integer.parseInt(
+                    this.public_url_expire_in
+            ))));
+
+            // IMPORTANT : save image information to database
             imageService.saveImage(imageModal);
 
-            return ResponseEntity.status(HttpStatus.OK).body(new ApiResponse<ImageDto>("Image update successfully", HttpStatus.OK.value(), new ImageDto(imageModal, imageUrl)));
+
+            return ResponseEntity.status(HttpStatus.OK).body(new ApiResponse<ImageDto>("Image update successfully", HttpStatus.OK.value(), new ImageDto(imageModal)));
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -99,47 +103,35 @@ public class ImageController {
         }
     }
 
-//    @GetMapping("/bn")
-//    public ResponseEntity<byte[]> getImage(@RequestParam String fileName) {
-//
-//        // Load the image as a resource
-//        Resource imageResource = resourceLoader.getResource("classpath:public/" + fileName);
-//
-//        if (!imageResource.exists()) {
-//            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-//        }
-//
-//        try {
-//            // Convert the image resource to a byte array
-//            byte[] imageBytes = imageResource.getInputStream().readAllBytes();
-//
-//            // Set the content type based on the file extension (e.g., PNG or JPEG)
-//            HttpHeaders headers = new HttpHeaders();
-//            headers.add(HttpHeaders.CONTENT_TYPE, "image/jpeg"); // Or "image/png" based on the file
-//
-//            return new ResponseEntity<>(imageBytes, headers, HttpStatus.OK);
-//        } catch (Exception e) {
-//            logger.error(e.getMessage());
-//            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
-//        }
-//    }
+    @GetMapping("/{fileName}")
+    public ResponseEntity<ApiResponse<?>> getFileById(@PathVariable("fileName") String fileName) {
 
-//    @GetMapping("/base64")
-//    public ResponseEntity<String> getImageBase64(@RequestParam String fileName) {
-//        // Load the image as a resource
-//        Resource imageResource = resourceLoader.getResource("classpath:public/" + fileName);
-//
-//        if (!imageResource.exists()) {
-//            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-//        }
-//
-//        try {
-//            // Read the image as bytes and encode it as Base64
-//            byte[] imageBytes = imageResource.getInputStream().readAllBytes();
-//            return new ResponseEntity<>(Base64.getEncoder().encodeToString(imageBytes), HttpStatus.OK);
-//        } catch (Exception e) {
-//            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
-//        }
-//
-//    }
+        try {
+            Optional<ImageModal> optionalImage = imageService.getImageByFileName(fileName);
+
+            if (optionalImage.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(new ApiResponse<>("Image not found", HttpStatus.NOT_FOUND.value()));
+            }
+
+            ImageModal image = optionalImage.get();
+
+            // IMPORTANT : update the public url and expired time of url to the newest version
+            image.setPublicUrl(cloudStorageService.getPresignedGetUrl(image.getFileName(), Duration.ofSeconds(Integer.parseInt(
+                            this.public_url_expire_in
+                    ))))
+                    .setExpireAt(LocalDateTime.now().plusSeconds(Integer.parseInt(this.public_url_expire_in)));
+
+            //  * save the modal to database
+            imageService.updateImage(image.getId().toString(), image);
+
+            // * response the image modal
+            return ResponseEntity.ok(new ApiResponse<ImageDto>("Query successful", HttpStatus.OK.value(), new ImageDto(image)));
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ApiResponse<>(HttpStatus.INTERNAL_SERVER_ERROR.name(), HttpStatus.INTERNAL_SERVER_ERROR.value()));
+        }
+
+    }
 }

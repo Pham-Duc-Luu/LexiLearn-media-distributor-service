@@ -4,9 +4,7 @@ import com.example.application.model.image.ImageModal;
 
 public class ImageDto extends ImageModal {
 
-    private String publicUrl; // Additional field for the DTO
-
-    public ImageDto(ImageModal imageModal, String publicUrl) {
+    public ImageDto(ImageModal imageModal) {
         super(); // Call the superclass constructor
         this.setId(imageModal.getId());
         this.setFileName(imageModal.getFileName());
@@ -15,15 +13,9 @@ public class ImageDto extends ImageModal {
         this.setWidth(imageModal.getWidth());
         this.setHeight(imageModal.getHeight());
         this.setCreatedAt(imageModal.getCreatedAt());
-        this.publicUrl = publicUrl;
+        this.setPublicUrl(imageModal.getPublicUrl());
+        this.setExpireAt(imageModal.getExpireAt());
     }
 
-    // Getters and Setters for publicUrl
-    public String getPublicUrl() {
-        return publicUrl;
-    }
 
-    public void setPublicUrl(String publicUrl) {
-        this.publicUrl = publicUrl;
-    }
 }
