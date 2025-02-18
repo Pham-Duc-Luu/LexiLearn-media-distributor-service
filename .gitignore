@@ -4,6 +4,9 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 
+/db
+/logs
+
 ##ENVIROMENT
 
 # dotenv environment variable files
