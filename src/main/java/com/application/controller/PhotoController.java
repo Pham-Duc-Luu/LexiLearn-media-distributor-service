@@ -1,32 +1,48 @@
 package com.application.controller;
 
 import com.application.dto.QueryPaginationResult;
+import com.application.dto.authentication.UserJWTObject;
+import com.application.enums.ImageSize;
+import com.application.exception.HttpNotFoundException;
 import com.application.model.image.elasticesearch.Photo;
-import com.application.service.PhotoService;
-import net.coobird.thumbnailator.Thumbnails;
+import com.application.model.mongo.UserImageMongoModal;
+import com.application.service.CloudStoreService.CloudStorageService;
+import com.application.service.ImageService.ImagePropertyService;
+import com.application.service.ImageService.ImageService;
+import com.application.service.ImageService.PhotoService;
+import com.application.service.ImageService.UserImageService;
+import com.application.util.CloudProvider;
+import jakarta.validation.Valid;
+import org.apache.coyote.BadRequestException;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 @RestController
-@RequestMapping("/images")
+@RequestMapping(path = "${apiPrefix}/images")
 public class PhotoController {
-
     private static final String UPLOAD_DIR = "uploaded_images/";
     private static final int MAX_WIDTH = 1920; // desired width
     private static final int MAX_HEIGHT = 600; // desired height
     private final PhotoService photoService;
+    private final ImagePropertyService imagePropertyService;
+    private final UserImageService userImageService;
+    Logger logger = LogManager.getLogger(PhotoController.class);
 
-    public PhotoController(PhotoService photoService) {
+    @Autowired
+    public PhotoController(PhotoService photoService, ImageService imageService, ImagePropertyService imagePropertyService, UserImageService userImageService) {
         this.photoService = photoService;
+        this.imagePropertyService = imagePropertyService;
+        this.userImageService = userImageService;
     }
 
     @GetMapping("/search")
@@ -50,34 +66,70 @@ public class PhotoController {
         }
     }
 
-    @PostMapping("/upload")
-    public ResponseEntity<String> uploadImage(@RequestParam("file") MultipartFile file) {
+    @PostMapping("/private/upload")
+    public ResponseEntity<?> uploadImage(@RequestParam("image") MultipartFile file,
+                                         @Valid UserJWTObject userJWTObject,
+                                         @RequestParam(name = "image_size", required = false) ImageSize imageSize
+    ) throws Exception {
+
         // Check if file is empty
         if (file.isEmpty()) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("No file uploaded.");
         }
 
-        // Ensure the upload directory exists
-        File uploadDir = new File(UPLOAD_DIR);
-        if (!uploadDir.exists()) {
-            uploadDir.mkdir();
-        }
+        if (!ImagePropertyService.isImageFile(file)) throw new BadRequestException("Wrong file type");
 
-        // Generate a safe file name
-        String originalFileName = StringUtils.cleanPath(file.getOriginalFilename());
-        Path targetLocation = Paths.get(UPLOAD_DIR + originalFileName);
+        if (imageSize == null) imageSize = ImageSize.SD;
 
+        // * resize the image
+        byte[] resizedImage = ImagePropertyService.resizeImage(file, imageSize);
+        // * generate uuid image url name
+        String imageFileName = UUID.randomUUID().toString();
+
+        // * upload to cloud
+        CloudStorageService s3StorageStrategy = new CloudStorageService(CloudProvider.AMAZON_S3);
+        // * Upload the file asynchronously and then fetch the presigned URL
+        CompletableFuture<String> uploadFuture = s3StorageStrategy.uploadFileAsync(imageFileName, resizedImage)
+                .thenApplyAsync(ignored -> {
+                    try {
+                        return s3StorageStrategy.getPresignedGetUrl();
+                    } catch (Exception e) {
+                        throw new RuntimeException("Failed to generate pre-signed URL", e);
+                    }
+                });
+
+        // * get the pre-sign url
+        UserImageMongoModal userImage = new UserImageMongoModal();
+        userImage.setFileName(imageFileName);
+        userImage.setUserUUID(userJWTObject.getUser_uuid());
+        userImage.setHeight(ImagePropertyService.getImageHeight(resizedImage));
+        userImage.setWidth(ImagePropertyService.getImageWidth(resizedImage));
+
+        // * save image information to elasticsearch
+        UserImageMongoModal savedPhoto = userImageService.insertUserImage(userImage);
+
+        // * Wait for the upload to complete and set the image URL
         try {
-            // Resize the image before saving it
-            Thumbnails.of(file.getInputStream())
-                    .size(MAX_WIDTH, MAX_HEIGHT)  // Set the max width and height
-                    .outputFormat("jpg")         // Optional: output format (e.g., JPG)
-                    .toFile(targetLocation.toFile()); // Save the resized image to the file
-
-            return ResponseEntity.status(HttpStatus.OK).body("File uploaded and resized successfully: " + originalFileName);
-        } catch (IOException e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error uploading file: " + e.getMessage());
+            savedPhoto.setPublicUrl(uploadFuture.get()); // Blocking call to ensure URL is set
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error processing upload");
         }
+
+        return ResponseEntity.status(HttpStatus.OK).body(savedPhoto);
+
     }
+
+    // TODO : create the presigned url for image in s3
+    @GetMapping("")
+    public ResponseEntity<?> getImage(@RequestParam(name = "image_id") String imageId, @RequestParam(name = "image_size", required = false) ImageSize imageSize) throws Exception {
+        CloudStorageService cloudStorageService = new CloudStorageService(CloudProvider.AMAZON_S3);
+        Photo photo = userImageService.getPhotoByPhotoId(imageId);
+        photo.setPhotoImageUrl(cloudStorageService.getPresignedGetUrl(photo.getPhotoId()));
+
+        if (photo == null) throw new HttpNotFoundException();
+
+        return ResponseEntity.ok(photo);
+    }
+
 
 }

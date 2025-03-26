@@ -15,11 +15,12 @@ target/
 .env.test.local
 .env.production.local
 .env.local
-
+*.env.*
 # temp directory
 .temp
 .tmp
 
+*.private.*
 ### STS ###
 .apt_generated
 .classpath
@@ -49,3 +50,7 @@ build/
 
 ### VS Code ###
 .vscode/
+/src/main/resources/private/
+/logs/
+
+*/logs/*

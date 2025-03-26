@@ -1,15 +1,17 @@
 package com.application.Strategy.CloudStorageStrategy;
 
-import com.application.service.S3Service;
+import com.application.config.DotenvConfig;
+import com.application.service.CloudStoreService.S3Service;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 
-@Service
+@Service("s3CloudStorage")  // This name will be used for dependency injection
 public class S3StorageStrategy implements CloudStorageStrategy {
     // Inject S3 client (e.g., AmazonS3 or S3AsyncClient)
     private final S3Service s3Service = new S3Service();
-    private final Duration duration = Duration.ofHours(1);
+
+    private final Duration duration = Duration.ofHours(Long.parseLong(DotenvConfig.getS3PresignedUrlDuration()));
 
     @Override
     public void uploadFile(String fileName, byte[] fileData) throws Exception {
@@ -18,9 +20,16 @@ public class S3StorageStrategy implements CloudStorageStrategy {
     }
 
     @Override
+    public String getPresignedGetUrl(String fileName) throws Exception {
+        return s3Service.getPresignedGetUrl(fileName, duration);
+    }
+
+
+    @Override
     public String getPresignedGetUrl(Duration duration) throws Exception {
         return s3Service.getPresignedGetUrl(duration);
     }
+
 
     @Override
     public String getPresignedGetUrl() throws Exception {

@@ -1,25 +1,26 @@
-package com.application.service;
+package com.application.service.CloudStoreService;
 
 import com.application.config.DotenvConfig;
+import com.application.exception.HttpInternalServerErrorException;
+import com.application.exception.HttpResponseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
-import org.springframework.scheduling.annotation.Async;
-import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
 
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.time.Duration;
-
-import java.io.ByteArrayInputStream;
 
 @Service
 public class S3Service {
@@ -50,7 +51,7 @@ public class S3Service {
     }
 
     // Helper method to perform the actual S3 upload
-    private void uploadToS3(String bucketName, String keyName, byte[] fileData) throws Exception {
+    private void uploadToS3(String bucketName, String keyName, byte[] fileData) throws HttpResponseException {
         try (InputStream inputStream = new ByteArrayInputStream(fileData)) {
             s3Client.putObject(PutObjectRequest.builder()
                             .bucket(bucketName)
@@ -62,18 +63,19 @@ public class S3Service {
             System.out.println("File uploaded to S3 successfully.");
         } catch (S3Exception e) {
             logger.error(e.awsErrorDetails().toString());
-            throw e;
+            throw new HttpInternalServerErrorException(e.awsErrorDetails().toString());
         } catch (Exception e) {
             logger.error(
                     e.toString()
             );
-            throw e;
+            throw new HttpInternalServerErrorException(e.toString());
+
         }
     }
 
     // Asynchronously uploads a file to S3 with the specified key
     @Async
-    public void uploadFile(String keyName, byte[] fileData) throws Exception {
+    public void uploadFile(String keyName, byte[] fileData) throws HttpResponseException {
         this.keyName = keyName;
         uploadToS3(DotenvConfig.getS3BucketName(), keyName, fileData);
 
@@ -81,7 +83,7 @@ public class S3Service {
 
     // Overloaded method to allow uploading to a specified bucket
     @Async
-    public void uploadFile(String bucketName, String keyName, byte[] fileData) throws Exception {
+    public void uploadFile(String bucketName, String keyName, byte[] fileData) throws HttpResponseException {
         this.keyName = keyName;
         uploadToS3(bucketName, keyName, fileData);
     }
@@ -139,7 +141,7 @@ public class S3Service {
 
         }
     }
-
+    
 
     /* Create a pre-signed URL to download an object in a subsequent GET request. */
     public String getPresignedGetUrl(Duration duration) {

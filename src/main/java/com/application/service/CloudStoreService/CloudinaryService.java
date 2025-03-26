@@ -1,4 +1,4 @@
-package com.application.service;
+package com.application.service.CloudStoreService;
 
 import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;

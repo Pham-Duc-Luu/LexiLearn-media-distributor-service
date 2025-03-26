@@ -37,4 +37,8 @@ public class DotenvConfig {
     public static String getS3BucketSecret() {
         return getEnv("AWS_S3_BUCKET_SECRET");
     }
+
+    public static String getS3PresignedUrlDuration() {
+        return getEnv("AWS_S3_PRESIGNED_URL_HOUR_DURATION");
+    }
 }

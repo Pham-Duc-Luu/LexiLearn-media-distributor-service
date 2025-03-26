@@ -1,4 +1,4 @@
-package com.application.service;
+package com.application.service.CloudStoreService;
 
 import com.application.Strategy.CloudStorageStrategy.CloudStorageStrategy;
 import com.application.Strategy.CloudStorageStrategy.GoogleCloudStorageStrategy;
@@ -8,6 +8,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
+import java.util.concurrent.CompletableFuture;
 
 
 @Service
@@ -32,13 +33,22 @@ public class CloudStorageService {
 
     }
 
-    @Async
+
     public void uploadFile(String fileName, byte[] fileData) throws Exception {
         if (cloudStorageStrategy == null) {
             throw new IllegalStateException("CloudStorageStrategy is not set");
         }
         cloudStorageStrategy.uploadFile(fileName, fileData);
     }
+
+    @Async
+    public CompletableFuture<Void> uploadFileAsync(String fileName, byte[] fileData) {
+        if (cloudStorageStrategy == null) {
+            throw new IllegalStateException("CloudStorageStrategy is not set");
+        }
+        return cloudStorageStrategy.uploadFileAsync(fileName, fileData);
+    }
+
 
     public String getPresignedGetUrl(String filename, Duration duration) throws Exception {
         if (cloudStorageStrategy == null) {
@@ -52,6 +62,13 @@ public class CloudStorageService {
             throw new IllegalStateException("CloudStorageStrategy is not set");
         }
         return cloudStorageStrategy.getPresignedGetUrl(duration);
+    }
+
+    public String getPresignedGetUrl(String fileName) throws Exception {
+        if (cloudStorageStrategy == null) {
+            throw new IllegalStateException("CloudStorageStrategy is not set");
+        }
+        return cloudStorageStrategy.getPresignedGetUrl(fileName);
     }
 
     public String getPresignedGetUrl() throws Exception {

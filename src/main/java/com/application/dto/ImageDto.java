@@ -17,5 +17,4 @@ public class ImageDto extends ImageModal {
         this.setExpireAt(imageModal.getExpireAt());
     }
 
-
 }
