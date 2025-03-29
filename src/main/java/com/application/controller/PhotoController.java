@@ -4,6 +4,7 @@ import com.application.dto.QueryPaginationResult;
 import com.application.dto.authentication.UserJWTObject;
 import com.application.enums.ImageSize;
 import com.application.exception.HttpNotFoundException;
+import com.application.exception.HttpUnauthorizedException;
 import com.application.model.image.elasticesearch.Photo;
 import com.application.model.mongo.UserImageMongoModal;
 import com.application.service.CloudStoreService.CloudStorageService;
@@ -24,6 +25,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -76,6 +78,9 @@ public class PhotoController {
         if (file.isEmpty()) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("No file uploaded.");
         }
+        if (userJWTObject.getUser_uuid() == null) {
+            throw new HttpUnauthorizedException();
+        }
 
         if (!ImagePropertyService.isImageFile(file)) throw new BadRequestException("Wrong file type");
 
@@ -116,20 +121,34 @@ public class PhotoController {
         }
 
         return ResponseEntity.status(HttpStatus.OK).body(savedPhoto);
-
     }
 
     // TODO : create the presigned url for image in s3
     @GetMapping("")
-    public ResponseEntity<?> getImage(@RequestParam(name = "image_id") String imageId, @RequestParam(name = "image_size", required = false) ImageSize imageSize) throws Exception {
-        CloudStorageService cloudStorageService = new CloudStorageService(CloudProvider.AMAZON_S3);
-        Photo photo = userImageService.getPhotoByPhotoId(imageId);
-        photo.setPhotoImageUrl(cloudStorageService.getPresignedGetUrl(photo.getPhotoId()));
+    public ResponseEntity<?> getImage(
+            @RequestParam(name = "image_id", required = false) String imageId,
+            @RequestParam(name = "file_name", required = false) String filename,
+            @RequestParam(name = "image_size", required = false) ImageSize imageSize,
+            @Valid UserJWTObject userJWTObject) throws Exception {
 
-        if (photo == null) throw new HttpNotFoundException();
-
-        return ResponseEntity.ok(photo);
+        if (userJWTObject.getUser_uuid() == null) {
+            throw new HttpUnauthorizedException("You are not allow to query this resources");
+        }
+        if (imageId != null) {
+            CloudStorageService cloudStorageService = new CloudStorageService(CloudProvider.AMAZON_S3);
+            Optional<UserImageMongoModal> photo = userImageService.getUserImageById(imageId, userJWTObject.getUser_uuid());
+            if (photo.isEmpty()) throw new HttpNotFoundException();
+            photo.get().setPublicUrl(cloudStorageService.getPresignedGetUrl(photo.get().getFileName()));
+            return ResponseEntity.ok(photo);
+        }
+        if (filename != null) {
+            CloudStorageService cloudStorageService = new CloudStorageService(CloudProvider.AMAZON_S3);
+            Optional<UserImageMongoModal> photo = userImageService.getUserImageByFileName(filename, userJWTObject.getUser_uuid());
+            if (photo.isEmpty()) throw new HttpNotFoundException();
+            photo.get().setPublicUrl(cloudStorageService.getPresignedGetUrl(photo.get().getFileName()));
+            return ResponseEntity.ok(photo);
+        }
+        return null;
     }
-
 
 }

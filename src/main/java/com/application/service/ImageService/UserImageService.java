@@ -12,7 +12,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.elasticsearch.client.elc.NativeQuery;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.SearchHits;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.stereotype.Service;
+
+import java.util.Optional;
 
 @Service
 public class UserImageService {
@@ -20,6 +23,8 @@ public class UserImageService {
     Logger logger = LogManager.getLogger(UserImageService.class);
     @Autowired
     private UserImageMongoRepository userImageMongoRepository;
+    @Autowired
+    private MongoTemplate mongoTemplate;
 
     @Autowired
     public UserImageService(ElasticsearchOperations elasticsearchOperations) {
@@ -32,6 +37,7 @@ public class UserImageService {
      * @param photoId The unique identifier of the photo.
      * @return The found {@link Photo} object, or {@code null} if not found.
      */
+    @Deprecated
     public Photo getPhotoByPhotoId(String photoId) {
         Query query = Query.of(q -> q
                 .match(m -> m.query(photoId).field("photo_id"))
@@ -49,5 +55,12 @@ public class UserImageService {
         return userImageMongoRepository.save(userImageMongoModal);
     }
 
+    public Optional<UserImageMongoModal> getUserImageById(String imageId, String userUUID) {
+        return userImageMongoRepository.findByIdAndUserUUID(imageId, userUUID);
+    }
+
+    public Optional<UserImageMongoModal> getUserImageByFileName(String filename, String userUUID) {
+        return userImageMongoRepository.findByFileNameAndUserUUID(filename, userUUID);
+    }
 
 }
