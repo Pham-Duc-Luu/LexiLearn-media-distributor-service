@@ -1,9 +1,9 @@
 package com.application.filter;
 
-import com.application.config.DotenvConfig;
 import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
@@ -11,10 +11,10 @@ import java.io.IOException;
 
 @Component
 @Order(1)
-
 public class ApiKeyFilter implements Filter {
 
-    private final String validApiKey = DotenvConfig.getEnv("API_KEY");
+    @Value("${spring.application.api-key}")
+    private String validApiKey;
 
     @Override
     public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain) throws IOException, ServletException {
@@ -27,15 +27,11 @@ public class ApiKeyFilter implements Filter {
         // Validate the API key
         if (apiKey == null || !apiKey.equals(validApiKey)) {
             // IMPORTANT : pass if this is development server
-            if (DotenvConfig.getEnv("ENV").equals("development") ||
-                    DotenvConfig.getEnv("ENV").equals("dev")
-            ) {
 
-            } else {
-                httpResponse.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                httpResponse.getWriter().write("Unauthorized: Missing or invalid API key");
-                return;
-            }
+            httpResponse.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            httpResponse.getWriter().write("Unauthorized: Missing or invalid API key");
+            return;
+
 
         }
 

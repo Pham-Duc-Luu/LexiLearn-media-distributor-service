@@ -4,12 +4,12 @@ import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 
 public interface CloudStorageStrategy {
-    void uploadFile(String fileName, byte[] fileData) throws Exception;
+    void uploadFile(String fileName, byte[] fileData, String contentType) throws Exception;
 
-    default CompletableFuture<Void> uploadFileAsync(String fileName, byte[] fileData) {
+    default CompletableFuture<Void> uploadFileAsync(String fileName, byte[] fileData, String contentType) {
         return CompletableFuture.runAsync(() -> {
             try {
-                uploadFile(fileName, fileData);
+                uploadFile(fileName, fileData, contentType);
             } catch (Exception e) {
                 throw new RuntimeException("File upload failed", e);
             }

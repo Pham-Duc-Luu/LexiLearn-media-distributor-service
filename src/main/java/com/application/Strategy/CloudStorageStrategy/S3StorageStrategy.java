@@ -1,27 +1,33 @@
 package com.application.Strategy.CloudStorageStrategy;
 
-import com.application.config.DotenvConfig;
 import com.application.service.CloudStoreService.S3Service;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 
-@Service("s3CloudStorage")  // This name will be used for dependency injection
+@Service
 public class S3StorageStrategy implements CloudStorageStrategy {
     // Inject S3 client (e.g., AmazonS3 or S3AsyncClient)
-    private final S3Service s3Service = new S3Service();
+    
+    @Autowired
+    private S3Service s3Service;
 
-    private final Duration duration = Duration.ofHours(Long.parseLong(DotenvConfig.getS3PresignedUrlDuration()));
+
+    @Value("${spring.application.s3.presignurl.duration}")
+    private Integer duration;
 
     @Override
-    public void uploadFile(String fileName, byte[] fileData) throws Exception {
+    public void uploadFile(String fileName, byte[] fileData, String contentType) throws Exception {
         // Logic to upload file to S3
-        s3Service.uploadFile(fileName, fileData);
+        s3Service.uploadFile(fileName, fileData, contentType);
     }
 
     @Override
     public String getPresignedGetUrl(String fileName) throws Exception {
-        return s3Service.getPresignedGetUrl(fileName, duration);
+
+        return s3Service.getPresignedGetUrl(fileName, Duration.ofHours(duration));
     }
 
 
@@ -33,7 +39,7 @@ public class S3StorageStrategy implements CloudStorageStrategy {
 
     @Override
     public String getPresignedGetUrl() throws Exception {
-        return s3Service.getPresignedGetUrl(this.duration);
+        return s3Service.getPresignedGetUrl(Duration.ofHours(duration));
     }
 
     @Override

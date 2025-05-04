@@ -1,6 +1,12 @@
 package com.application.config;
 
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
 public class UpsplashConfig {
-    private final String upsplashUrl = DotenvConfig.getEnv("UPSPLASH_URL");
-    private final String upsplashAccesstoken = DotenvConfig.getEnv("UPSPLASH_ACCESS_TOKEN");
+    @Value("${spring.application.upsplash.url}")
+    private String upsplashUrl;
+    @Value("${spring.application.upsplash.access-token}")
+    private String upsplashAccesstoken;
 }

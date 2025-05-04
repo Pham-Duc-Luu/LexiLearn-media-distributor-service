@@ -1,6 +1,7 @@
 package com.application.service;
 
 
+import com.application.util.KeyLoader;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.JWTVerifier;
 import com.auth0.jwt.algorithms.Algorithm;
@@ -12,19 +13,41 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.security.interfaces.RSAPublicKey;
+
 @Service
 public class AccessTokenJwtService {
     Logger logger = LogManager.getLogger(AccessTokenJwtService.class);
-    // * set the algorithm for the jwt token
     Algorithm algorithm;
-    @Value("${jwt.public.key}")
-    private String publicKey;
-//    @Value("${jwt.public.time}")
-//    private String publicTime;
+
+
+    @Value("${user.jwt.access-token.public-key.path}")
+    private String publicKeyPath;
+
+    @Value("${user.jwt.access-token.algorithm}")
+    private String jwtAlgorithm;
+
 
     @PostConstruct
     public void initAlgorithm() {
-        this.algorithm = Algorithm.HMAC256(publicKey);
+
+        try {
+            // Load RSA keys from the resources folder
+            RSAPublicKey publicKey = KeyLoader.loadPublicKey(publicKeyPath);
+            switch (jwtAlgorithm) {
+                case "RSA256":
+                    this.algorithm = Algorithm.RSA256(publicKey);
+                case "RSA384":
+                    this.algorithm = Algorithm.RSA384(publicKey);
+                case "RSA512":
+                    this.algorithm = Algorithm.RSA512(publicKey);
+                default:
+                    this.algorithm = Algorithm.RSA256(publicKey);
+
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
 //    @Deprecated

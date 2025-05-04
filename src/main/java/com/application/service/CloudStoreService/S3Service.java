@@ -1,10 +1,13 @@
 package com.application.service.CloudStoreService;
 
-import com.application.config.DotenvConfig;
 import com.application.exception.HttpInternalServerErrorException;
 import com.application.exception.HttpResponseException;
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -25,38 +28,36 @@ import java.time.Duration;
 @Service
 public class S3Service {
     private static final Logger logger = LoggerFactory.getLogger(S3Service.class);
-    private final S3Client s3Client;
-    private final String bucketname = DotenvConfig.getS3BucketName();
-    private final Region region = Region.of(DotenvConfig.getS3BucketRegion());
-    private final String key = DotenvConfig.getS3BucketKey();
-    private final String secret = DotenvConfig.getS3BucketSecret();
+    private S3Client s3Client;
+    @Autowired
+    private Environment environment;
+    @Value("${spring.application.s3.bucket-name}")
+    private String bucketname;
+    @Value("${spring.application.s3.bucket-region}")
+    private Region region;
+    @Value("${spring.application.s3.bucket-key}")
+    private String key;
+    @Value("${spring.application.s3.bucket-secret}")
+    private String secret;
     private String PresignedGetUrl;
-
-
     private String keyName;
 
-    // ! build a constant by default
-    public S3Service() {
-        this.s3Client = S3Client.builder().region(region).credentialsProvider(
-                        StaticCredentialsProvider.create(AwsBasicCredentials.create(key, secret)))
-                .build();
-    }
-
-    public S3Service(String accessKey, String secretKey, String region) {
+    @PostConstruct
+    private void init() {
         this.s3Client = S3Client.builder()
-                .region(Region.of(region))
+                .region(region)
                 .credentialsProvider(
-                        StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey)))
-                .build();
+                        StaticCredentialsProvider.create(AwsBasicCredentials.create(key, secret))
+                ).build();
     }
 
     // Helper method to perform the actual S3 upload
-    private void uploadToS3(String bucketName, String keyName, byte[] fileData) throws HttpResponseException {
+    private void uploadToS3(String bucketName, String keyName, byte[] fileData, String contentType) throws HttpResponseException {
         try (InputStream inputStream = new ByteArrayInputStream(fileData)) {
             s3Client.putObject(PutObjectRequest.builder()
                             .bucket(bucketName)
                             .key(keyName)
-                            .contentType("image/jpeg")  // Specify the content type as JPEG
+                            .contentType(contentType)  // Specify the content type as JPEG
                             .build(),
                     software.amazon.awssdk.core.sync.RequestBody.fromInputStream(inputStream, fileData.length));
 
@@ -75,17 +76,17 @@ public class S3Service {
 
     // Asynchronously uploads a file to S3 with the specified key
     @Async
-    public void uploadFile(String keyName, byte[] fileData) throws HttpResponseException {
+    public void uploadFile(String keyName, byte[] fileData, String contentType) throws HttpResponseException {
         this.keyName = keyName;
-        uploadToS3(DotenvConfig.getS3BucketName(), keyName, fileData);
+        uploadToS3(bucketname, keyName, fileData, contentType);
 
     }
 
     // Overloaded method to allow uploading to a specified bucket
     @Async
-    public void uploadFile(String bucketName, String keyName, byte[] fileData) throws HttpResponseException {
+    public void uploadFile(String bucketName, String keyName, byte[] fileData, String contentType) throws HttpResponseException {
         this.keyName = keyName;
-        uploadToS3(bucketName, keyName, fileData);
+        uploadToS3(bucketName, keyName, fileData, contentType);
     }
 
 
@@ -141,7 +142,7 @@ public class S3Service {
 
         }
     }
-    
+
 
     /* Create a pre-signed URL to download an object in a subsequent GET request. */
     public String getPresignedGetUrl(Duration duration) {

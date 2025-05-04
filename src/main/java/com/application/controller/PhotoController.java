@@ -12,12 +12,12 @@ import com.application.service.ImageService.ImagePropertyService;
 import com.application.service.ImageService.ImageService;
 import com.application.service.ImageService.PhotoService;
 import com.application.service.ImageService.UserImageService;
-import com.application.util.CloudProvider;
 import jakarta.validation.Valid;
 import org.apache.coyote.BadRequestException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.env.Environment;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -39,6 +39,12 @@ public class PhotoController {
     private final ImagePropertyService imagePropertyService;
     private final UserImageService userImageService;
     Logger logger = LogManager.getLogger(PhotoController.class);
+
+    @Autowired
+    private Environment environment;
+
+    @Autowired
+    private CloudStorageService s3StorageStrategy;
 
     @Autowired
     public PhotoController(PhotoService photoService, ImageService imageService, ImagePropertyService imagePropertyService, UserImageService userImageService) {
@@ -92,9 +98,8 @@ public class PhotoController {
         String imageFileName = UUID.randomUUID().toString();
 
         // * upload to cloud
-        CloudStorageService s3StorageStrategy = new CloudStorageService(CloudProvider.AMAZON_S3);
         // * Upload the file asynchronously and then fetch the presigned URL
-        CompletableFuture<String> uploadFuture = s3StorageStrategy.uploadFileAsync(imageFileName, resizedImage)
+        CompletableFuture<String> uploadFuture = s3StorageStrategy.uploadImageAsync(imageFileName, resizedImage)
                 .thenApplyAsync(ignored -> {
                     try {
                         return s3StorageStrategy.getPresignedGetUrl();
@@ -117,6 +122,7 @@ public class PhotoController {
         try {
             savedPhoto.setPublicUrl(uploadFuture.get()); // Blocking call to ensure URL is set
         } catch (Exception e) {
+            e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error processing upload");
         }
 
@@ -135,17 +141,15 @@ public class PhotoController {
             throw new HttpUnauthorizedException("You are not allow to query this resources");
         }
         if (imageId != null) {
-            CloudStorageService cloudStorageService = new CloudStorageService(CloudProvider.AMAZON_S3);
             Optional<UserImageMongoModal> photo = userImageService.getUserImageById(imageId, userJWTObject.getUser_uuid());
             if (photo.isEmpty()) throw new HttpNotFoundException();
-            photo.get().setPublicUrl(cloudStorageService.getPresignedGetUrl(photo.get().getFileName()));
+            photo.get().setPublicUrl(s3StorageStrategy.getPresignedGetUrl(photo.get().getFileName()));
             return ResponseEntity.ok(photo);
         }
         if (filename != null) {
-            CloudStorageService cloudStorageService = new CloudStorageService(CloudProvider.AMAZON_S3);
             Optional<UserImageMongoModal> photo = userImageService.getUserImageByFileName(filename, userJWTObject.getUser_uuid());
             if (photo.isEmpty()) throw new HttpNotFoundException();
-            photo.get().setPublicUrl(cloudStorageService.getPresignedGetUrl(photo.get().getFileName()));
+            photo.get().setPublicUrl(s3StorageStrategy.getPresignedGetUrl(photo.get().getFileName()));
             return ResponseEntity.ok(photo);
         }
         return null;
