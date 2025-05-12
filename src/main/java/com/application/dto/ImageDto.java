@@ -1,20 +1,17 @@
 package com.application.dto;
 
-import com.application.model.image.ImageModal;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
-public class ImageDto extends ImageModal {
+@NoArgsConstructor
+@Data
+public class ImageDto {
+    private String _id;
+    private String owner_UUID;
+    private String url;
+    private String width;
+    private String height;
+    private String description;
 
-    public ImageDto(ImageModal imageModal) {
-        super(); // Call the superclass constructor
-        this.setId(imageModal.getId());
-        this.setFileName(imageModal.getFileName());
-        this.setFileSize(imageModal.getFileSize());
-        this.setFormat(imageModal.getFormat());
-        this.setWidth(imageModal.getWidth());
-        this.setHeight(imageModal.getHeight());
-        this.setCreatedAt(imageModal.getCreatedAt());
-        this.setPublicUrl(imageModal.getPublicUrl());
-        this.setExpireAt(imageModal.getExpireAt());
-    }
 
 }

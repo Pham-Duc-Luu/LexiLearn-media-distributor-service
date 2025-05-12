@@ -1,12 +1,17 @@
 package com.application.model.mongo;
 
+import com.application.dto.ImageDto;
 import com.application.util.CloudProvider;
 import jakarta.validation.constraints.NotNull;
+import lombok.Getter;
+import lombok.Setter;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.LocalDateTime;
 
+@Getter
+@Setter
 @Document(collection = "user_images")
 public class UserImageMongoModal {
     @Id
@@ -23,6 +28,7 @@ public class UserImageMongoModal {
     private LocalDateTime createdAt = LocalDateTime.now(); // Maps to image_created_at
     private LocalDateTime expireAt;
     private String cloudProvider = CloudProvider.AMAZON_S3.toString();
+
 
     public UserImageMongoModal() {
     }
@@ -59,113 +65,16 @@ public class UserImageMongoModal {
         this.cloudProvider = cloudProvider;
     }
 
-    public String getCloudProvider() {
-        return cloudProvider;
-    }
-
-    public void setCloudProvider(String cloudProvider) {
-        this.cloudProvider = cloudProvider;
-    }
-
-    public UserImageMongoModal setCloudProvider(CloudProvider cloudProvider) {
-        this.cloudProvider = cloudProvider.toString();
-        return this;
-    }
-
-    public String getUserUUID() {
-        return userUUID;
-    }
-
-    public void setUserUUID(String userUUID) {
-        this.userUUID = userUUID;
-    }
-
-    public String getPublicUrl() {
-        return publicUrl;
-    }
-
-    public UserImageMongoModal setPublicUrl(String publicUrl) {
-        this.publicUrl = publicUrl;
-        return this;
-    }
-
-    // Getters and Setters
-
-    public String getId() {
-        return id;
-    }
-
-    public UserImageMongoModal setId(String id) {
-        this.id = id;
-        return this;
-    }
-
-    public String getFileName() {
-        return fileName;
-    }
-
-    public UserImageMongoModal setFileName(String fileName) {
-        this.fileName = fileName;
-        return this;
-
-    }
-
-    public Long getFileSize() {
-        return fileSize;
-    }
-
-    public UserImageMongoModal setFileSize(Long fileSize) {
-        this.fileSize = fileSize;
-        return this;
-
-    }
-
-    public String getFormat() {
-        return format;
-    }
-
-    public UserImageMongoModal setFormat(String format) {
-        this.format = format;
-        return this;
-
-    }
-
-    public Integer getWidth() {
-        return width;
-    }
-
-    public UserImageMongoModal setWidth(Integer width) {
-        this.width = width;
-        return this;
-
+    public ImageDto mapToImageDto() {
+        ImageDto dto = new ImageDto();
+        dto.set_id(this.id);
+        dto.setOwner_UUID(this.userUUID);
+        dto.setUrl(this.publicUrl);
+        dto.setWidth(this.width != null ? String.valueOf(this.width) : null);
+        dto.setHeight(this.height != null ? String.valueOf(this.height) : null);
+        dto.setDescription(this.fileName); // Optional: map fileName as description
+        return dto;
     }
 
 
-    public Integer getHeight() {
-        return height;
-    }
-
-    public UserImageMongoModal setHeight(Integer height) {
-        this.height = height;
-        return this;
-
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public UserImageMongoModal setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-        return this;
-    }
-
-    public LocalDateTime getExpireAt() {
-        return expireAt;
-    }
-
-    public UserImageMongoModal setExpireAt(LocalDateTime expireAt) {
-        this.expireAt = expireAt;
-        return this;
-    }
 }

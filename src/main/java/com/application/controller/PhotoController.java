@@ -1,8 +1,13 @@
 package com.application.controller;
 
+import com.application.ExternalService.GoogleSearch.SearchService.GoogleImageSearchService;
+import com.application.ExternalService.GoogleSearch.dto.GoogleSearchImageResult;
+import com.application.dto.ImageDto;
 import com.application.dto.QueryPaginationResult;
 import com.application.dto.authentication.UserJWTObject;
 import com.application.enums.ImageSize;
+import com.application.exception.HttpBadRequestException;
+import com.application.exception.HttpInternalServerErrorException;
 import com.application.exception.HttpNotFoundException;
 import com.application.exception.HttpUnauthorizedException;
 import com.application.model.image.elasticesearch.Photo;
@@ -43,8 +48,12 @@ public class PhotoController {
     @Autowired
     private Environment environment;
 
+
     @Autowired
     private CloudStorageService s3StorageStrategy;
+
+    @Autowired
+    private GoogleImageSearchService googleImageSearchService;
 
     @Autowired
     public PhotoController(PhotoService photoService, ImageService imageService, ImagePropertyService imagePropertyService, UserImageService userImageService) {
@@ -54,35 +63,49 @@ public class PhotoController {
     }
 
     @GetMapping("/search")
-    public ResponseEntity<?> searchPhoto(@RequestParam(name = "q") String query, @RequestParam(name = "skip", defaultValue = "0") Integer skip, @RequestParam(name = "limit", defaultValue = "30") Integer limit) {
-        try {
-
-            // * prepare data
-            QueryPaginationResult<List<Photo>> queryPaginationResult = new QueryPaginationResult();
-
-            if (skip == null) {
-                skip = 0;
-            }
-            if (limit == null || limit > 30) limit = 30;
+    public ResponseEntity<QueryPaginationResult<List<ImageDto>>> searchPhoto(@RequestParam(name = "q") String query,
+                                                                             @RequestParam(value = "lr", required = false) String languageRestrict,
+                                                                             @RequestParam(name = "skip", defaultValue = "0") Integer skip,
+                                                                             @RequestParam(name = "limit", defaultValue = "30") Integer limit
 
 
-            List<Photo> photos = photoService.searchByText(query, skip, limit);
-            return ResponseEntity.ok(new QueryPaginationResult<List<Photo>>(photos.size(), limit, skip, photos));
-        } catch (IOException e) {
-            e.printStackTrace();
-            return ResponseEntity.internalServerError().body("Error fetching photos");
+    ) throws IOException {
+
+        // * prepare data
+        QueryPaginationResult<List<Photo>> queryPaginationResult = new QueryPaginationResult();
+
+        if (skip == null) {
+            skip = 0;
         }
+        if (limit == null || limit > 30) limit = 30;
+
+        List<Photo> photos = photoService.searchByText(query, skip, limit);
+
+        // * using google sear api
+        List<GoogleSearchImageResult> googleSearchImageResults = googleImageSearchService.search(query, 0, languageRestrict);
+
+        googleSearchImageResults.stream().forEach(result -> {
+            Photo photo = new Photo();
+            photo.setPhotoDescription(result.getTitle());
+            photo.setPhotoImageUrl(result.getLink());
+            photos.add(photo);
+        });
+
+
+        return ResponseEntity.ok(new QueryPaginationResult<List<ImageDto>>(photos.size(), limit, skip, photos.stream().map(item -> item.mapToImageDto()).toList()));
+
+
     }
 
     @PostMapping("/private/upload")
-    public ResponseEntity<?> uploadImage(@RequestParam("image") MultipartFile file,
-                                         @Valid UserJWTObject userJWTObject,
-                                         @RequestParam(name = "image_size", required = false) ImageSize imageSize
+    public ResponseEntity<ImageDto> uploadImage(@RequestParam("image") MultipartFile file,
+                                                @Valid UserJWTObject userJWTObject,
+                                                @RequestParam(name = "image_size", required = false) ImageSize imageSize
     ) throws Exception {
 
         // Check if file is empty
         if (file.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("No file uploaded.");
+            throw new HttpBadRequestException("No file uploaded.");
         }
         if (userJWTObject.getUser_uuid() == null) {
             throw new HttpUnauthorizedException();
@@ -123,15 +146,15 @@ public class PhotoController {
             savedPhoto.setPublicUrl(uploadFuture.get()); // Blocking call to ensure URL is set
         } catch (Exception e) {
             e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error processing upload");
+            throw new HttpInternalServerErrorException("Error processing upload");
         }
 
-        return ResponseEntity.status(HttpStatus.OK).body(savedPhoto);
+        return ResponseEntity.status(HttpStatus.OK).body(savedPhoto.mapToImageDto());
     }
 
     // TODO : create the presigned url for image in s3
     @GetMapping("")
-    public ResponseEntity<?> getImage(
+    public ResponseEntity<ImageDto> getImage(
             @RequestParam(name = "image_id", required = false) String imageId,
             @RequestParam(name = "file_name", required = false) String filename,
             @RequestParam(name = "image_size", required = false) ImageSize imageSize,
@@ -144,13 +167,13 @@ public class PhotoController {
             Optional<UserImageMongoModal> photo = userImageService.getUserImageById(imageId, userJWTObject.getUser_uuid());
             if (photo.isEmpty()) throw new HttpNotFoundException();
             photo.get().setPublicUrl(s3StorageStrategy.getPresignedGetUrl(photo.get().getFileName()));
-            return ResponseEntity.ok(photo);
+            return ResponseEntity.ok(photo.get().mapToImageDto());
         }
         if (filename != null) {
             Optional<UserImageMongoModal> photo = userImageService.getUserImageByFileName(filename, userJWTObject.getUser_uuid());
             if (photo.isEmpty()) throw new HttpNotFoundException();
             photo.get().setPublicUrl(s3StorageStrategy.getPresignedGetUrl(photo.get().getFileName()));
-            return ResponseEntity.ok(photo);
+            return ResponseEntity.ok(photo.get().mapToImageDto());
         }
         return null;
     }
