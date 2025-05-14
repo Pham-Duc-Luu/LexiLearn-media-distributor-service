@@ -12,6 +12,4 @@ public class ImageDto {
     private String width;
     private String height;
     private String description;
-
-
 }
