@@ -1,6 +1,8 @@
 package com.application.controller;
 
+import com.application.dto.AudioDto;
 import com.application.dto.authentication.UserJWTObject;
+import com.application.exception.HttpInternalServerErrorException;
 import com.application.exception.HttpNotFoundException;
 import com.application.exception.HttpUnauthorizedException;
 import com.application.model.mongo.UserAudioMongoModal;
@@ -8,14 +10,18 @@ import com.application.service.AudioService.AudioService;
 import com.application.service.CloudStoreService.CloudStorageService;
 import jakarta.validation.Valid;
 import org.apache.coyote.BadRequestException;
+import org.apache.tika.metadata.Metadata;
+import org.apache.tika.parser.AutoDetectParser;
+import org.apache.tika.parser.ParseContext;
+import org.apache.tika.sax.BodyContentHandler;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.InputStream;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 @RestController
@@ -30,12 +36,12 @@ public class AudioController {
     private CloudStorageService s3StorageStrategy;
 
     @PostMapping("/private/upload")
-    public ResponseEntity<?> uploadImage(@RequestParam("audio") MultipartFile file,
-                                         @Valid UserJWTObject userJWTObject
+    public ResponseEntity<AudioDto> uploadImage(@RequestParam("audio") MultipartFile file,
+                                                @Valid UserJWTObject userJWTObject
     ) throws Exception {
         // Check if file is empty
         if (file.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("No file uploaded.");
+            throw new BadRequestException("No file found");
         }
         if (userJWTObject.getUser_uuid() == null) {
             throw new HttpUnauthorizedException();
@@ -49,11 +55,33 @@ public class AudioController {
             throw new BadRequestException("File size exceeds the limit of 5MB");
         }
 
-        // * generate audio name
-        String audioFileName = "audio_" + UUID.randomUUID();
+        // Read duration
+        // Extract audio duration using Apache Tika
+        Metadata metadata = new Metadata();
+        BodyContentHandler handler = new BodyContentHandler();
+        ParseContext context = new ParseContext();
+
+        AutoDetectParser parser = new AutoDetectParser();
+        try (InputStream input = file.getInputStream()) {
+            parser.parse(input, handler, metadata, context);
+        }
+
+        String duration = metadata.get("xmpDM:duration"); // in milliseconds
+        long durationInMillis = duration != null ? (long) Double.parseDouble(duration) : 0;
+        long durationInSeconds = durationInMillis / 1000;
+
+        // * get the pre-sign url
+        UserAudioMongoModal userAudioMongoModal = new UserAudioMongoModal();
+        userAudioMongoModal.setUserUUID(userJWTObject.getUser_uuid());
+        userAudioMongoModal.setLengthInSecond(durationInSeconds);
+        userAudioMongoModal.setFileSize(file.getSize());
+
+        // * save audio infor to database
+        UserAudioMongoModal savedAudio = audioService.insertUserAudio(userAudioMongoModal);
+
         // * upload to cloud
         // * Upload the file asynchronously and then fetch the presigned URL
-        CompletableFuture<String> uploadFuture = s3StorageStrategy.uploadAudioAsync(audioFileName, file.getBytes())
+        CompletableFuture<String> uploadFuture = s3StorageStrategy.uploadAudioAsync(userAudioMongoModal.getFileName(), file.getBytes())
                 .thenApplyAsync(ignored -> {
                     try {
                         return s3StorageStrategy.getPresignedGetUrl();
@@ -62,28 +90,19 @@ public class AudioController {
                     }
                 });
 
-        // * get the pre-sign url
-
-        UserAudioMongoModal userAudioMongoModal = new UserAudioMongoModal();
-        userAudioMongoModal.setFileName(audioFileName);
-        userAudioMongoModal.setUserUUID(userJWTObject.getUser_uuid());
-
-        // * save audio infor to database
-        UserAudioMongoModal savedAudio = audioService.insertUserAudio(userAudioMongoModal);
 
         // * Wait for the upload to complete and set the image URL
         try {
             savedAudio.setPublicUrl(uploadFuture.get()); // Blocking call to ensure URL is set
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error processing upload");
+            throw new HttpInternalServerErrorException("Error processing upload");
         }
-
-        return ResponseEntity.status(HttpStatus.OK).body(savedAudio);
+        return ResponseEntity.status(HttpStatus.OK).body(savedAudio.mapToAudioDto());
     }
 
     // TODO : create the presigned url for image in s3
     @GetMapping("")
-    public ResponseEntity<?> getImage(
+    public ResponseEntity<AudioDto> getAudio(
             @RequestParam(name = "audio_id", required = false) String audioId,
             @RequestParam(name = "file_name", required = false) String filename,
             @Valid UserJWTObject userJWTObject) throws Exception {
@@ -95,14 +114,14 @@ public class AudioController {
             Optional<UserAudioMongoModal> photo = audioService.getUserAudioById(audioId, userJWTObject.getUser_uuid());
             if (photo.isEmpty()) throw new HttpNotFoundException();
             photo.get().setPublicUrl(s3StorageStrategy.getPresignedGetUrl(photo.get().getFileName()));
-            return ResponseEntity.ok(photo);
+            return ResponseEntity.ok(photo.get().mapToAudioDto());
         }
         if (filename != null) {
             Optional<UserAudioMongoModal> photo = audioService.getUserAudioByFileName(filename, userJWTObject.getUser_uuid());
             if (photo.isEmpty()) throw new HttpNotFoundException();
             photo.get().setPublicUrl(s3StorageStrategy.getPresignedGetUrl(photo.get().getFileName()));
-            return ResponseEntity.ok(photo);
+            return ResponseEntity.ok(photo.get().mapToAudioDto());
         }
-        return null;
+        throw new HttpInternalServerErrorException();
     }
 }

@@ -6,9 +6,11 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Getter
 @Setter
@@ -20,7 +22,8 @@ public class UserImageMongoModal {
     private String userUUID;
     private String publicUrl;
     @NotNull
-    private String fileName;
+    @Indexed(unique = true)
+    private String fileName = userUUID + "." + UUID.randomUUID();
     private Long fileSize;
     private String format;
     private Integer width;
@@ -28,7 +31,6 @@ public class UserImageMongoModal {
     private LocalDateTime createdAt = LocalDateTime.now(); // Maps to image_created_at
     private LocalDateTime expireAt;
     private String cloudProvider = CloudProvider.AMAZON_S3.toString();
-
 
     public UserImageMongoModal() {
     }
@@ -75,6 +77,5 @@ public class UserImageMongoModal {
         dto.setDescription(this.fileName); // Optional: map fileName as description
         return dto;
     }
-
 
 }

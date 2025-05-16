@@ -1,12 +1,19 @@
 package com.application.model.mongo;
 
+import com.application.dto.AudioDto;
 import com.application.util.CloudProvider;
 import jakarta.validation.constraints.NotNull;
+import lombok.Getter;
+import lombok.Setter;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
+@Getter
+@Setter
 @Document(collection = "user_audios")
 public class UserAudioMongoModal {
     private final LocalDateTime createdAt = LocalDateTime.now(); // Maps to image_created_at
@@ -17,82 +24,20 @@ public class UserAudioMongoModal {
     private String userUUID;
     private String publicUrl;
     @NotNull
-    private String fileName;
+    @Indexed(unique = true)
+    private String fileName = userUUID + "." + UUID.randomUUID();
     private Long fileSize;
     private String format;
     private LocalDateTime expireAt;
-    private String lengthInSecond;
+    private Long lengthInSecond;
 
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public String getCloudProvider() {
-        return cloudProvider;
-    }
-
-    public String getId() {
-        return id;
-    }
-
-    public void setId(String id) {
-        this.id = id;
-    }
-
-    public String getUserUUID() {
-        return userUUID;
-    }
-
-    public void setUserUUID(String userUUID) {
-        this.userUUID = userUUID;
-    }
-
-    public String getPublicUrl() {
-        return publicUrl;
-    }
-
-    public void setPublicUrl(String publicUrl) {
-        this.publicUrl = publicUrl;
-    }
-
-    public String getFileName() {
-        return fileName;
-    }
-
-    public void setFileName(String fileName) {
-        this.fileName = fileName;
-    }
-
-    public Long getFileSize() {
-        return fileSize;
-    }
-
-    public void setFileSize(Long fileSize) {
-        this.fileSize = fileSize;
-    }
-
-    public String getFormat() {
-        return format;
-    }
-
-    public void setFormat(String format) {
-        this.format = format;
-    }
-
-    public LocalDateTime getExpireAt() {
-        return expireAt;
-    }
-
-    public void setExpireAt(LocalDateTime expireAt) {
-        this.expireAt = expireAt;
-    }
-
-    public String getLengthInSecond() {
-        return lengthInSecond;
-    }
-
-    public void setLengthInSecond(String lengthInSecond) {
-        this.lengthInSecond = lengthInSecond;
+    public AudioDto mapToAudioDto() {
+        AudioDto audioDto = new AudioDto();
+        audioDto.set_id(id);
+        audioDto.setUrl(publicUrl);
+        audioDto.setOwner_UUID(userUUID);
+        audioDto.setLength_in_second(lengthInSecond);
+        return audioDto;
     }
 
 }

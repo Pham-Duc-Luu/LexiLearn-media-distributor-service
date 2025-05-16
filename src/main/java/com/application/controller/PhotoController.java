@@ -31,7 +31,6 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 @RestController
@@ -67,8 +66,6 @@ public class PhotoController {
                                                                              @RequestParam(value = "lr", required = false) String languageRestrict,
                                                                              @RequestParam(name = "skip", defaultValue = "0") Integer skip,
                                                                              @RequestParam(name = "limit", defaultValue = "30") Integer limit
-
-
     ) throws IOException {
 
         // * prepare data
@@ -115,14 +112,24 @@ public class PhotoController {
 
         if (imageSize == null) imageSize = ImageSize.SD;
 
+
         // * resize the image
         byte[] resizedImage = ImagePropertyService.resizeImage(file, imageSize);
-        // * generate uuid image url name
-        String imageFileName = UUID.randomUUID().toString();
+        // * generate uuid image url name : {user's uurd}.{random_uuid}
+
+        // * get the pre-sign url
+        UserImageMongoModal userImage = new UserImageMongoModal();
+        userImage.setUserUUID(userJWTObject.getUser_uuid());
+        userImage.setHeight(ImagePropertyService.getImageHeight(resizedImage));
+        userImage.setFileSize(file.getSize());
+        userImage.setWidth(ImagePropertyService.getImageWidth(resizedImage));
+
+        // * save image information to elasticsearch
+        UserImageMongoModal savedPhoto = userImageService.insertUserImage(userImage);
 
         // * upload to cloud
         // * Upload the file asynchronously and then fetch the presigned URL
-        CompletableFuture<String> uploadFuture = s3StorageStrategy.uploadImageAsync(imageFileName, resizedImage)
+        CompletableFuture<String> uploadFuture = s3StorageStrategy.uploadImageAsync(userImage.getFileName(), resizedImage)
                 .thenApplyAsync(ignored -> {
                     try {
                         return s3StorageStrategy.getPresignedGetUrl();
@@ -131,15 +138,6 @@ public class PhotoController {
                     }
                 });
 
-        // * get the pre-sign url
-        UserImageMongoModal userImage = new UserImageMongoModal();
-        userImage.setFileName(imageFileName);
-        userImage.setUserUUID(userJWTObject.getUser_uuid());
-        userImage.setHeight(ImagePropertyService.getImageHeight(resizedImage));
-        userImage.setWidth(ImagePropertyService.getImageWidth(resizedImage));
-
-        // * save image information to elasticsearch
-        UserImageMongoModal savedPhoto = userImageService.insertUserImage(userImage);
 
         // * Wait for the upload to complete and set the image URL
         try {
