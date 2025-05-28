@@ -1,6 +1,6 @@
-package com.application.ExternalService.GoogleSearch.SearchService;
+package com.application.ExternalService.GoogleSearch.SearchService.google;
 
-import com.application.ExternalService.GoogleSearch.dto.GoogleSearchImageResult;
+import com.application.ExternalService.GoogleSearch.dto.google.GoogleSearchImageResult;
 import com.application.dto.ImageDto;
 import com.application.dto.QueryPaginationResult;
 import com.application.model.image.elasticesearch.Photo;
@@ -29,14 +29,8 @@ public class GoogleImageSearchController {
         // * using google sear api
         List<GoogleSearchImageResult> googleSearchImageResults = googleImageSearchService.search(allParams);
 
-        googleSearchImageResults.stream().forEach(result -> {
-            Photo photo = new Photo();
-            photo.setPhotoDescription(result.getTitle());
-            photo.setPhotoImageUrl(result.getLink());
-            photos.add(photo);
-        });
 
-        return ResponseEntity.ok(new QueryPaginationResult<List<ImageDto>>(photos.size(), 0, 0, photos.stream().map(item -> item.mapToImageDto()).toList()));
+        return ResponseEntity.ok(new QueryPaginationResult<List<ImageDto>>(photos.size(), 0, 0, googleSearchImageResults.stream().map(item -> item.mapToImageDto()).toList()));
 
     }
 

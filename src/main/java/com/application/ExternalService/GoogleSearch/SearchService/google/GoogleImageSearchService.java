@@ -1,8 +1,8 @@
-package com.application.ExternalService.GoogleSearch.SearchService;
+package com.application.ExternalService.GoogleSearch.SearchService.google;
 
 import com.application.ExternalService.GoogleSearch.SearchClient.GoogleSearchClient;
-import com.application.ExternalService.GoogleSearch.dto.GoogleSearchImageResult;
-import com.application.ExternalService.GoogleSearch.dto.GoogleSearchResponse;
+import com.application.ExternalService.GoogleSearch.dto.google.GoogleSearchImageResult;
+import com.application.ExternalService.GoogleSearch.dto.google.GoogleSearchResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -34,12 +34,10 @@ public class GoogleImageSearchService {
 
     public List<GoogleSearchImageResult> search(Map<String, String> allParams) {
 
-        allParams.put("key", apiKey)
-        ;
-        allParams.put("cx", cx)
-        ;
+        allParams.put("key", apiKey);
+        allParams.put("cx", cx);
         allParams.put("searchType", "image");
-        
+
         GoogleSearchResponse response = googleSearchClient.searchImages(allParams);
         if (response.getItems() == null) return List.of();
         return response.getItems();

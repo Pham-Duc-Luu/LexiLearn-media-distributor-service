@@ -12,6 +12,6 @@ export $(cat .env | xargs)
 sudo docker build -t lexilearn-media-distributor .
 
 sudo docker compose up
-# # Run the Spring Boot app
+ # Run the Spring Boot app
 # java -jar target/*.jar  # Adjust path if necessary
 

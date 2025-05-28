@@ -1,5 +1,7 @@
 package com.application.model;
 
+import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import co.elastic.clients.elasticsearch.cluster.HealthResponse;
 import com.application.model.image.elasticesearch.Photo;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -12,7 +14,7 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 public class ElasticsearchIndexInitializer {
-
+    private final ElasticsearchClient elasticsearchClient;
     private final ElasticsearchOperations elasticsearchOperations;
     Logger logger = LogManager.getLogger(ElasticsearchIndexInitializer.class);
 
@@ -29,5 +31,16 @@ public class ElasticsearchIndexInitializer {
             logger.error(e.getMessage());
         }
 
+    }
+
+    @PostConstruct
+    public void checkElasticsearchHealth() {
+        try {
+            HealthResponse health = elasticsearchClient.cluster().health();
+            logger.info(health);
+        } catch (Exception e) {
+            logger.error(e);
+
+        }
     }
 }

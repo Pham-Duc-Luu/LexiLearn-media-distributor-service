@@ -25,35 +25,24 @@ public class Photo {
     private String photoId;
     @Field(name = "owner_uuid", type = FieldType.Text)
     private String ownerUUID;
-    @Field(name = "photo_url", type = FieldType.Text)
-    private String photoUrl;
+
     @Field(name = "photo_image_url", type = FieldType.Text)
     private String photoImageUrl;
 
-    @Field(name = "photo_featured", type = FieldType.Text)
-    private String photoFeatured;
+
     @Field(name = "photo_width", type = FieldType.Text)
-    private String photoWidth;
+    private Integer photoWidth;
     @Field(name = "photo_height", type = FieldType.Text)
-    private String photoHeight;
+    private Integer photoHeight;
     @Field(name = "photo_aspect_ratio", type = FieldType.Text)
     private String photoAspectRatio;
     @Field(name = "photo_description", type = FieldType.Text)
     private String photoDescription;
-    @Field(name = "photo_location_name", type = FieldType.Text)
-    private String photoLocationName;
 
 
     @Field(name = "ai_description", type = FieldType.Text)
     private String aiDescription;
-    @Field(name = "ai_primary_landmark_name", type = FieldType.Text)
-    private String aiPrimaryLandmarkName;
-    @Field(name = "ai_primary_landmark_latitude", type = FieldType.Text)
-    private String aiPrimaryLandmarkLatitude;
-    @Field(name = "ai_primary_landmark_longitude", type = FieldType.Text)
-    private String aiPrimaryLandmarkLongitude;
-    @Field(name = "ai_primary_landmark_confidence", type = FieldType.Text)
-    private String aiPrimaryLandmarkConfidence;
+
 
     public static IndexCoordinates getDefaultIndexCoordinates() {
         return IndexCoordinates.of("photos");

@@ -6,6 +6,14 @@
                     pattern="%style{%d{ISO8601}}{black} %highlight{%-5level }[%style{%t}{bright,blue}] %style{%C{1}}{bright,yellow}: %msg%n%throwable"/>
         </Console>
 
+        Add this Socket Appender for Logstash
+        <Socket name="Logstash"
+                host="${env:LOGSTASH_HOST}"
+                port="${env:LOGSTASH_PORT}"
+                protocol="TCP">
+            <JsonLayout compact="true" eventEol="true"/>
+        </Socket>
+
         <RollingFile name="RollingFile"
                      filePattern="./logs/$${date:yyyy-MM-dd}/spring-boot-logger-log4j2-%d{-dd-MMMM-yyyy}-%i.log.gz">
             <PatternLayout>
@@ -27,6 +35,7 @@
         <Root level="info">
             <AppenderRef ref="Console"/>
             <AppenderRef ref="RollingFile"/>
+            <AppenderRef ref="Logstash"/>
         </Root>
         <Logger name="com.application" level="trace"></Logger>
     </Loggers>

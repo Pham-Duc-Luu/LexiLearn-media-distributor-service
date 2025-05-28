@@ -56,4 +56,5 @@ build/
 */logs/*
 /src/main/resources/jwt-key/
 
+**log**
 *.pem

@@ -28,6 +28,8 @@ public class ElasticsearchConfig {
     @Value("${elasticsearch.port}")
     private String elasticsearchPort;
 
+//    @Value("${elasticsearch.api.key:}")
+//    private String elasticsearchApiKey;
 //    @Bean
 //    public RestClient getRestClient() {
 //        return RestClient
@@ -48,9 +50,17 @@ public class ElasticsearchConfig {
                     httpClientBuilder.setDefaultHeaders(List.of(
                             new BasicHeader(
                                     HttpHeaders.CONTENT_TYPE, ContentType.APPLICATION_JSON)));
-                    httpClientBuilder.addInterceptorLast((HttpResponseInterceptor)
-                            (response, context) ->
-                                    response.addHeader("X-Elastic-Product", "Elasticsearch"));
+
+                    httpClientBuilder
+                            // * add product type
+                            .addInterceptorLast((HttpResponseInterceptor)
+                                    (response, context) ->
+                                            response.addHeader("X-Elastic-Product", "Elasticsearch"))
+                            // * add elasticsearch cloud api key
+                            .addInterceptorLast((HttpResponseInterceptor)
+                                    (response, context) ->
+                                            response.addHeader("Authorization", "ApiKey azBxcDNKWUJNRDhhR1ZPWmU0T1Q6NDhrX29ZYndfVHRZaWJNQUpzZ0FpZw=="));
+
                     return httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider);
                 }).build();
     }

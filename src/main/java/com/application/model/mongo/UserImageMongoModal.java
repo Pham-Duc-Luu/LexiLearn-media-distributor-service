@@ -72,8 +72,8 @@ public class UserImageMongoModal {
         dto.set_id(this.id);
         dto.setOwner_UUID(this.userUUID);
         dto.setUrl(this.publicUrl);
-        dto.setWidth(this.width != null ? String.valueOf(this.width) : null);
-        dto.setHeight(this.height != null ? String.valueOf(this.height) : null);
+        dto.setWidth(this.width != null ? (this.width) : null);
+        dto.setHeight(this.height != null ? (this.height) : null);
         dto.setDescription(this.fileName); // Optional: map fileName as description
         return dto;
     }

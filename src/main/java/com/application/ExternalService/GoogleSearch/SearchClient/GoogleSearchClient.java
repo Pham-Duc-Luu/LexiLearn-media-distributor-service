@@ -1,6 +1,6 @@
 package com.application.ExternalService.GoogleSearch.SearchClient;
 
-import com.application.ExternalService.GoogleSearch.dto.GoogleSearchResponse;
+import com.application.ExternalService.GoogleSearch.dto.google.GoogleSearchResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;

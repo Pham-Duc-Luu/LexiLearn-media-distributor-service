@@ -1,18 +1,25 @@
 package com.application.service.ImageService;
 
 import co.elastic.clients.elasticsearch._types.query_dsl.Query;
+import com.application.ExternalService.GoogleSearch.SearchService.Upsplash.UpsplashSeachService;
+import com.application.ExternalService.GoogleSearch.SearchService.google.GoogleImageSearchService;
+import com.application.dto.ImageDto;
 import com.application.model.image.elasticesearch.Photo;
+import com.application.repository.mongodb.ImageCollectionRepository;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.elasticsearch.client.elc.NativeQuery;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.SearchHits;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 /**
@@ -21,17 +28,17 @@ import java.util.stream.Collectors;
  */
 @Service
 public class PhotoService {
-    private final ElasticsearchOperations elasticsearchOperations;
     Logger logger = LogManager.getLogger(PhotoService.class);
+    @Autowired
+    private ElasticsearchOperations elasticsearchOperations;
+    @Autowired
+    private ImageCollectionRepository imageCollectionRepository;
 
-    /**
-     * Constructor for PhotoService.
-     *
-     * @param elasticsearchOperations The ElasticsearchOperations instance for interacting with Elasticsearch.
-     */
-    public PhotoService(ElasticsearchOperations elasticsearchOperations) {
-        this.elasticsearchOperations = elasticsearchOperations;
-    }
+    @Autowired
+    private GoogleImageSearchService googleImageSearchService;
+
+    @Autowired
+    private UpsplashSeachService upsplashSeachService;
 
     /**
      * Retrieves a photo by its unique photo ID.
@@ -148,4 +155,26 @@ public class PhotoService {
                 .map(hit -> hit.getContent())
                 .collect(Collectors.toList());
     }
+
+
+    @Async
+    public CompletableFuture<Void> asyncSaveImageCollectionToMongo(List<ImageDto> imageDtoList) {
+        List<CompletableFuture<Void>> futures = imageDtoList.stream()
+                .map(dto -> CompletableFuture.runAsync(() -> {
+                    try {
+                        imageCollectionRepository.save(dto.mapToCollectionImageModal());
+                    } catch (Exception e) {
+                        logger.error("Error saving image: {}", dto.getTitle(), e);
+                    }
+                }))
+                .toList();
+
+        return CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
+    }
+
+
+//    public List<ImageDto> searchByTextWithExternalThirdParty(String query, Integer skip, Integer limit) throws IOException {
+//
+//    }
+
 }

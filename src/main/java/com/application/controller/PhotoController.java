@@ -1,7 +1,9 @@
 package com.application.controller;
 
-import com.application.ExternalService.GoogleSearch.SearchService.GoogleImageSearchService;
-import com.application.ExternalService.GoogleSearch.dto.GoogleSearchImageResult;
+import com.application.ExternalService.GoogleSearch.SearchService.Upsplash.UpsplashSeachService;
+import com.application.ExternalService.GoogleSearch.SearchService.google.GoogleImageSearchService;
+import com.application.ExternalService.GoogleSearch.dto.Upsplash.UpsplashSeachPhotoResult;
+import com.application.ExternalService.GoogleSearch.dto.google.GoogleSearchImageResult;
 import com.application.dto.ImageDto;
 import com.application.dto.QueryPaginationResult;
 import com.application.dto.authentication.UserJWTObject;
@@ -12,9 +14,9 @@ import com.application.exception.HttpNotFoundException;
 import com.application.exception.HttpUnauthorizedException;
 import com.application.model.image.elasticesearch.Photo;
 import com.application.model.mongo.UserImageMongoModal;
+import com.application.repository.mongodb.ImageCollectionRepository;
 import com.application.service.CloudStoreService.CloudStorageService;
 import com.application.service.ImageService.ImagePropertyService;
-import com.application.service.ImageService.ImageService;
 import com.application.service.ImageService.PhotoService;
 import com.application.service.ImageService.UserImageService;
 import jakarta.validation.Valid;
@@ -29,6 +31,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -39,11 +42,13 @@ public class PhotoController {
     private static final String UPLOAD_DIR = "uploaded_images/";
     private static final int MAX_WIDTH = 1920; // desired width
     private static final int MAX_HEIGHT = 600; // desired height
-    private final PhotoService photoService;
-    private final ImagePropertyService imagePropertyService;
-    private final UserImageService userImageService;
     Logger logger = LogManager.getLogger(PhotoController.class);
-
+    @Autowired
+    private PhotoService photoService;
+    @Autowired
+    private ImagePropertyService imagePropertyService;
+    @Autowired
+    private UserImageService userImageService;
     @Autowired
     private Environment environment;
 
@@ -55,11 +60,17 @@ public class PhotoController {
     private GoogleImageSearchService googleImageSearchService;
 
     @Autowired
-    public PhotoController(PhotoService photoService, ImageService imageService, ImagePropertyService imagePropertyService, UserImageService userImageService) {
-        this.photoService = photoService;
-        this.imagePropertyService = imagePropertyService;
-        this.userImageService = userImageService;
-    }
+    private UpsplashSeachService upsplashSeachService;
+
+    @Autowired
+    private ImageCollectionRepository imageCollectionRepository;
+
+//    @Autowired
+//    public PhotoController(PhotoService photoService, ImagePropertyService imagePropertyService, UserImageService userImageService) {
+//        this.photoService = photoService;
+//        this.imagePropertyService = imagePropertyService;
+//        this.userImageService = userImageService;
+//    }
 
     @GetMapping("/search")
     public ResponseEntity<QueryPaginationResult<List<ImageDto>>> searchPhoto(@RequestParam(name = "q") String query,
@@ -76,20 +87,30 @@ public class PhotoController {
         }
         if (limit == null || limit > 30) limit = 30;
 
-        List<Photo> photos = photoService.searchByText(query, skip, limit);
+        // * store result for later use
+        List<ImageDto> imageDtoList = new ArrayList<>();
 
         // * using google sear api
-        List<GoogleSearchImageResult> googleSearchImageResults = googleImageSearchService.search(query, 0, languageRestrict);
+        try {
+            List<GoogleSearchImageResult> googleSearchImageResults = googleImageSearchService.search(query, 0, languageRestrict);
+            googleSearchImageResults.forEach(item -> imageDtoList.add(item.mapToImageDto()));
+        } catch (Exception e) {
+            e.printStackTrace();
+            logger.error(e);
+        }
 
-        googleSearchImageResults.stream().forEach(result -> {
-            Photo photo = new Photo();
-            photo.setPhotoDescription(result.getTitle());
-            photo.setPhotoImageUrl(result.getLink());
-            photos.add(photo);
-        });
+        // * using upsplash search api
+        try {
+            List<UpsplashSeachPhotoResult> upsplashSeachPhotoResultList = upsplashSeachService.upsplashSearch(query).getResults();
+            upsplashSeachPhotoResultList.forEach(item -> imageDtoList.add(item.mapToImage()));
+        } catch (Exception e) {
+            e.printStackTrace();
+            logger.error(e);
+        }
 
-
-        return ResponseEntity.ok(new QueryPaginationResult<List<ImageDto>>(photos.size(), limit, skip, photos.stream().map(item -> item.mapToImageDto()).toList()));
+        photoService.asyncSaveImageCollectionToMongo(imageDtoList);
+        
+        return ResponseEntity.ok(new QueryPaginationResult<List<ImageDto>>(imageDtoList.size(), limit, skip, imageDtoList));
 
 
     }
