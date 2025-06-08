@@ -109,7 +109,7 @@ public class PhotoController {
         }
 
         photoService.asyncSaveImageCollectionToMongo(imageDtoList);
-        
+
         return ResponseEntity.ok(new QueryPaginationResult<List<ImageDto>>(imageDtoList.size(), limit, skip, imageDtoList));
 
 
@@ -177,6 +177,7 @@ public class PhotoController {
             @RequestParam(name = "image_id", required = false) String imageId,
             @RequestParam(name = "file_name", required = false) String filename,
             @RequestParam(name = "image_size", required = false) ImageSize imageSize,
+
             @Valid UserJWTObject userJWTObject) throws Exception {
 
         if (userJWTObject.getUser_uuid() == null) {
@@ -185,13 +186,19 @@ public class PhotoController {
         if (imageId != null) {
             Optional<UserImageMongoModal> photo = userImageService.getUserImageById(imageId, userJWTObject.getUser_uuid());
             if (photo.isEmpty()) throw new HttpNotFoundException();
-            photo.get().setPublicUrl(s3StorageStrategy.getPresignedGetUrl(photo.get().getFileName()));
+
             return ResponseEntity.ok(photo.get().mapToImageDto());
         }
         if (filename != null) {
             Optional<UserImageMongoModal> photo = userImageService.getUserImageByFileName(filename, userJWTObject.getUser_uuid());
-            if (photo.isEmpty()) throw new HttpNotFoundException();
-            photo.get().setPublicUrl(s3StorageStrategy.getPresignedGetUrl(photo.get().getFileName()));
+            if (photo.isEmpty()) {
+                UserImageMongoModal newPhoto = new UserImageMongoModal();
+                newPhoto.setPublicUrl(s3StorageStrategy.getPresignedGetUrl(filename));
+                return ResponseEntity.ok(newPhoto.mapToImageDto());
+            } else {
+                photo.get().setPublicUrl(s3StorageStrategy.getPresignedGetUrl(photo.get().getFileName()));
+
+            }
             return ResponseEntity.ok(photo.get().mapToImageDto());
         }
         return null;
